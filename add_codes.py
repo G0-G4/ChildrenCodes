@@ -39,7 +39,7 @@ while True:
         if start.isdigit():
             start = int(start)
         else:
-            sg.popup('начальный ряд задается числом > 1')
+            sg.popup('начальный ряд задается числом >= 1')
             continue
         try:
             wb = load_workbook(file)
