@@ -84,8 +84,10 @@ def add_children(ws, start, children, settings, cat):
             num = len(children[code])
             print(code, 'moving down', len(children[code]), 'rows')
             # ws.insert_rows(i+1, num) # insert_rows inserts before index, indexing starts from one there for add 1
-            rang = get_range(1, i+1, ws.max_column, ws.max_row)
-            ws.move_range(rang, rows = num, translate = True)
+            if i != ws.max_row:
+                rang = get_range(1, i+1, ws.max_column, ws.max_row)
+                print(rang)
+                ws.move_range(rang, rows = num, translate = True)
             values = get_values(cat, children[code], settings.keys())
             insert_values(ws, i+1, i+num, settings.values(), values)
             i += num
