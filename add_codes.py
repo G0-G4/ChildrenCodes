@@ -50,8 +50,8 @@ while True:
         try:
             children = generate_children(CATALOG)
             add_children(ws, start, children, COLUMN_SETTINGS, CATALOG)
-            name, suff = file.split('.')
-            wb.save(name+'_res.'+suff)
+            *dirr, suff = file.split('.')
+            wb.save('.'.join(dirr)+'_res.'+suff)
             sg.popup('Done!')
         except Exception as e:
             sg.popup(e)
