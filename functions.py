@@ -1,5 +1,7 @@
 import pickle
 import PySimpleGUI as sg
+import pandas as pd
+import numpy as np
 from openpyxl.utils.cell  import column_index_from_string, get_column_letter
 from collections import defaultdict
 from exceptions import *
@@ -9,7 +11,7 @@ def load_catalog(name):
         cat = pickle.load(f)
     return cat
 
-def set_columns(names, settings):
+def set_columns(names, settings, check=True):
     res = {}
     layout = [
         [sg.T(name), sg.Input(get_column_letter(settings[name]+1) if name in settings else '', key=name)] for name in names
@@ -24,7 +26,10 @@ def set_columns(names, settings):
                 if values[key] == '':
                     continue
                 try:
-                    res[key] = column_index_from_string(values[key]) - 1
+                    if check:
+                        res[key] = column_index_from_string(values[key]) - 1
+                    else:
+                        res[key] = values[key] # for second tab no need for check
                 except ValueError as e:
                     sg.popup(e)
                     break
@@ -87,3 +92,56 @@ def add_children(ws, start, children, settings, cat):
             insert_values(ws, i+1, i+num, settings.values(), values)
             i += num
         i += 1
+
+
+# def mother_children_table(cat, codes, settings):
+#     cat_grouped = cat.set_index(['Клон', 'Код тов.'])
+#     cat_grouped.sort_index(inplace = True)
+#     print(settings.keys())
+#     return cat_grouped.loc[codes]
+
+# def read_codes(file, settings):
+#     return pd.read_excel(file).iloc[:, settings['Код тов.']]
+
+def check_df(df):
+    if df.columns[0]!= 'Код тов.':
+        return False
+    return True
+
+def group(cat, clones, copy, df):
+    add_children = []
+    # searching childten to add
+    for _, row in df.iterrows():
+        if row['Код тов.'] in clones:
+            for ch in clones[row['Код тов.']]:
+                if ch not in df['Код тов.'].values:
+                    add_children.append(ch)
+    # merging
+    df = pd.concat([df, (pd.DataFrame({'Код тов.': add_children}))])
+    res = df.merge(cat, on=['Код тов.'], how='left', suffixes=('','catalog'))
+    res = res.set_index(['Клон', 'Код тов.'])
+    res.sort_index(inplace = True)
+    # copying values
+    if copy:
+        for i in res.index.get_level_values(0):
+            n = len(res.loc[i])
+            for name in df.columns[1:]:
+                res.loc[i, name] = np.full(n, res.loc[i].iloc[0][name])
+    return res
+
+def check_box_window(initial):
+    layout = [
+        [sg.Column([[sg.Checkbox(name, key=name, default=val)] for name, val in initial.items()], scrollable=True, size=(200, 300)), sg.B('ok')]
+]
+    window =  sg.Window('choose', layout, modal=True)
+    while True:
+        event, values = window.read()
+        if event:
+            window.close()
+        if event == sg.WIN_CLOSED:
+            return []
+        if event == 'ok':
+            return list(map(lambda x: x[0], filter(lambda x: x[1], values.items())))
+
+if __name__ == '__main__':
+    print(check_box_window({'a':1, 'b':0}))

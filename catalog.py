@@ -14,5 +14,5 @@ names = dict(zip(cat.columns, cat.loc[[0]].values.flatten()))
 cat.rename(columns = names, inplace = True)
 print('saving file...')
 with open('cat.pkl', 'wb') as f:
-    pickle.dump(cat, f)
+    pickle.dump(cat[1:], f)
 print('Done!')
