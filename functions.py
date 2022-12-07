@@ -34,16 +34,11 @@ def set_columns(names, settings):
     window.close()
     
 def generate_children(cat):
-    children = defaultdict(list)
-    for code, article in zip(cat['Код тов.'][1:], cat['Артикул'][1:]):
-        mcode = code
-        if '/' in str(article):
-            mcode = article.split('/')[0].strip()
-            if mcode.isdigit():
-                mcode = int(mcode)
-                if mcode != code:
-                    children[mcode].append(code)
-    return children
+    clones = defaultdict(list)
+    for code, clone in zip(cat['Код тов.'][1:], cat['Клон'][1:]):
+        if type(clone) == int and clone != code:
+            clones[clone].append(code)
+    return clones
 
 def get_values(cat, codes, names):
     df = cat[cat['Код тов.'].isin(codes)][names]
