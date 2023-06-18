@@ -6,7 +6,7 @@ from openpyxl.utils.cell  import column_index_from_string, get_column_letter
 from collections import defaultdict
 from exceptions import *
 
-CODE_COLUMN = 'код'
+CODE_COLUMN = 'Код'
 CLONE_COLUMN = 'клон'
 
 def load_catalog(name):
@@ -16,9 +16,10 @@ def load_catalog(name):
 
 def set_columns(names, settings, check=True):
     res = {}
-    layout = [
+    column = [
         [sg.T(name), sg.Input(get_column_letter(settings[name]+1) if name in settings else '', key=name)] for name in names
-    ] + [[sg.B('ok')]]
+    ] 
+    layout = [[sg.Column(column, scrollable=True, vertical_scroll_only=True, size=(500, 500))]] + [[sg.B('ok')]]
     window =  sg.Window('setting up columns', layout, modal=True)
     while True:
         event, values = window.read()
@@ -45,7 +46,7 @@ def generate_children(cat):
     clones = defaultdict(list)
     for code, clone in zip(cat[CODE_COLUMN], cat[CLONE_COLUMN]):
         if not str(clone).isdigit():
-            print('skipped clone ', clone)
+            # print('skipped clone ', clone)
             continue
         clone = int(clone)
         if clone != 0 and clone != code: # dont add mother code to its children
@@ -95,72 +96,6 @@ def get_mother(code, cat):
         return 0
     return int(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN])
 
-# BIAS = 0
-# def add_children(ws, start, children, settings, cat):
-#     for every code
-#     if code is not mother, and mother not in file add mother above
-#     if mother in file, move it above
-#     if code is mother do nothing and go to adding children
-#     for this mother code add children from catalog
-#     for this mother code add children from file
-#     global BIAS
-#     BIAS = 0
-#     if CODE_COLUMN not in settings:
-#         raise CodeColumnNotFound('please provide column for mother code')
-#     all_codes = get_all_codes(ws, start, settings)
-#     code_id = settings[CODE_COLUMN]
-#     if code_id >= len(ws[1]):
-#         raise OutOfBounds('provided mother code column is not in the table')
-#     i = start
-#     codes = all_codes.copy() # codes used to move rows
-#     while True:
-#         row = ws[i]
-#         if row[code_id].value == None:
-#             break
-#         try:
-#             code = int(row[code_id].value)
-#         except Exception as e:
-#             print(f'Wrong mother code {row[code_id].value}')
-#             # raise MotherCodeError(f'Wrong mother code {row[code_id].value}')
-        
-#         mother = get_mother(code, cat)
-#         if code not in children and mother != 0:
-#             if mother not in all_codes:
-#                 add_mother_from_catalog()
-#             else:
-#                 move_mother()
-#         elif code in children:
-#             move_children()
-#             add_children()
-#             print(code, 'inserting mother', mother)
-#             if i != ws.max_row:
-#                 rang = get_range(1, i, ws.max_column, ws.max_row)
-#                 print(rang, ' moving down 1')
-#                 ws.move_range(rang, rows = 1, translate = True) # moving instead of inserting for not managing formulas
-#             values = get_values(cat, [mother], settings.keys())
-#             insert_values(ws, i, i, settings.values(), values)
-#             all_codes[mother] = None
-#             i += 1
-#             BIAS += 1
-#             print('moved to ', i, 'code = ', code, f'{BIAS=}')
-#             continue
-#         if code in children:
-#             not_used_children = list(filter(lambda x: x not in all_codes, children[code])) # add not used children from catalog
-#             num = len(not_used_children)
-#             print(code, 'moving down', len(not_used_children), 'rows')
-#             # ws.insert_rows(i+1, num) # insert_rows inserts before index, indexing starts from one there for add 1
-#             if i != ws.max_row:
-#                 rang = get_range(1, i+1, ws.max_column, ws.max_row)
-#                 print(rang)
-#                 ws.move_range(rang, rows = num, translate = True) # moving instead of inserting for not managing formulas
-#             values = get_values(cat, not_used_children, settings.keys())
-#             insert_values(ws, i+1, i+num, settings.values(), values)
-#             i += num
-#         i += group_codes(ws, code, i, codes, children, cat)
-#         i += 1
-#     print('=============')
-
-
 def group_codes(ws, code, i, all_codes, children, cat):
     global BIAS
     if len(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN]) != 1:
@@ -190,18 +125,6 @@ def group_codes(ws, code, i, all_codes, children, cat):
         print(f'{BIAS=}')
         i += 1
     return len(brothers)
-
-
-
-
-# def mother_children_table(cat, codes, settings):
-#     cat_grouped = cat.set_index([CLONE_COLUMN, CODE_COLUMN])
-#     cat_grouped.sort_index(inplace = True)
-#     print(settings.keys())
-#     return cat_grouped.loc[codes]
-
-# def read_codes(file, settings):
-#     return pd.read_excel(file).iloc[:, settings[CODE_COLUMN]]
 
 def check_df(df):
     if df.columns[0]!= CODE_COLUMN:

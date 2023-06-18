@@ -67,6 +67,9 @@ while True:
         ws = wb.active
         try:
             children = generate_children(CATALOG)
+            if CODE_COLUMN not in COLUMN_SETTINGS:
+                sg.popup('настройте колонки')
+                continue
             grp = Grouper(wb, start, children, COLUMN_SETTINGS, CATALOG)
             grp.process()
             grp.save(save_name)
@@ -97,6 +100,4 @@ while True:
         except Exception as e:
             sg.popup(e)
             print(traceback.print_exc())
-
-
 window.close()
