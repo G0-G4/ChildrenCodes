@@ -6,6 +6,7 @@ import sys
 import pickle
 import traceback
 from functions import *
+from grouper import Grouper
 
 
 group_tab = [
@@ -23,7 +24,7 @@ layout = [
     [sg.T('файл'), sg.Input(key='-excel-'), sg.FileBrowse(file_types=(("excel", "*.xlsx"),("excel", "*.xls")))],
     [sg.TabGroup([[
         sg.Tab(layout=add_tab, key='-add_tab-', title='добавить'),
-        sg.Tab(layout=group_tab, key='-group_tab-', title='группировать и добавить')
+        #sg.Tab(layout=group_tab, key='-group_tab-', title='группировать и добавить')
     ]], size=(450, 100))]
 ]
 
@@ -66,8 +67,11 @@ while True:
         ws = wb.active
         try:
             children = generate_children(CATALOG)
-            add_children(ws, start, children, COLUMN_SETTINGS, CATALOG)
-            wb.save(save_name)
+            grp = Grouper(wb, start, children, COLUMN_SETTINGS, CATALOG)
+            grp.process()
+            grp.save(save_name)
+            # add_children(ws, start, children, COLUMN_SETTINGS, CATALOG)
+            # wb.save(save_name)
             sg.popup('Done!')
         except Exception as e:
             sg.popup(e)
@@ -78,7 +82,7 @@ while True:
         try:
             df = pd.read_excel(file)
             if not check_df(df):
-                sg.popup('выберите подходящий файл (первая колонка должны быть "Код тов.")')
+                sg.popup('выберите подходящий файл (первая колонка должны быть с нужным названием)') #CODE_COLUMN
                 continue
             children = generate_children(CATALOG)
             res = group(CATALOG, children, values['-copy-'], df)

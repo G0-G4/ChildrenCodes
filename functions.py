@@ -6,6 +6,9 @@ from openpyxl.utils.cell  import column_index_from_string, get_column_letter
 from collections import defaultdict
 from exceptions import *
 
+CODE_COLUMN = 'код'
+CLONE_COLUMN = 'клон'
+
 def load_catalog(name):
     with open(name, 'rb') as f:
         cat = pickle.load(f)
@@ -40,13 +43,17 @@ def set_columns(names, settings, check=True):
     
 def generate_children(cat):
     clones = defaultdict(list)
-    for code, clone in zip(cat['Код тов.'][1:], cat['Клон'][1:]):
-        if type(clone) == int and clone != code:
+    for code, clone in zip(cat[CODE_COLUMN], cat[CLONE_COLUMN]):
+        if not str(clone).isdigit():
+            print('skipped clone ', clone)
+            continue
+        clone = int(clone)
+        if clone != 0 and clone != code: # dont add mother code to its children
             clones[clone].append(code)
     return clones
 
 def get_values(cat, codes, names):
-    df = cat[cat['Код тов.'].isin(codes)][names]
+    df = cat[cat[CODE_COLUMN].isin(codes)][names]
     return [list(df[name]) for name in names]
 
 def get_range(c1: int, r1: int, c2: int, r2: int):
@@ -64,47 +71,140 @@ def insert_values(ws, start, end, columns, values):
                 row[col].value = val
             except IndexError:
                 raise InsertError(f'cant insert into {(start+i, col+1)}',)
-
-def add_children(ws, start, children, settings, cat):
-    if 'Код тов.' not in settings:
-        raise CodeColumnNotFound('please provide column for mother code')
-    code_id = settings['Код тов.']
-    if code_id >= len(ws[1]):
-        raise OutOfBounds('provided mother code column is not in the table')
+            
+def get_all_codes(ws, start, settings):
+    # save codes indexes
+    codes = dict()
     i = start
+    code_id = settings[CODE_COLUMN]
     while True:
         row = ws[i]
         if row[code_id].value == None:
             break
         try:
-            code = int(row[code_id].value)
+            codes[int(row[code_id].value)] = i
+            # codes.add(int(row[code_id].value))
         except Exception as e:
-            raise MotherCodeError(f'Wrong mother code {row[code_id].value}')
-        if code in children:
-            num = len(children[code])
-            print(code, 'moving down', len(children[code]), 'rows')
-            # ws.insert_rows(i+1, num) # insert_rows inserts before index, indexing starts from one there for add 1
-            if i != ws.max_row:
-                rang = get_range(1, i+1, ws.max_column, ws.max_row)
-                print(rang)
-                ws.move_range(rang, rows = num, translate = True)
-            values = get_values(cat, children[code], settings.keys())
-            insert_values(ws, i+1, i+num, settings.values(), values)
-            i += num
+            print(f'Wrong mother code {row[code_id].value}')
+            # raise MotherCodeError(f'Wrong mother code {row[code_id].value}')
         i += 1
+    return codes
+
+def get_mother(code, cat):
+    if len(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN]) != 1:
+        return 0
+    return int(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN])
+
+# BIAS = 0
+# def add_children(ws, start, children, settings, cat):
+#     for every code
+#     if code is not mother, and mother not in file add mother above
+#     if mother in file, move it above
+#     if code is mother do nothing and go to adding children
+#     for this mother code add children from catalog
+#     for this mother code add children from file
+#     global BIAS
+#     BIAS = 0
+#     if CODE_COLUMN not in settings:
+#         raise CodeColumnNotFound('please provide column for mother code')
+#     all_codes = get_all_codes(ws, start, settings)
+#     code_id = settings[CODE_COLUMN]
+#     if code_id >= len(ws[1]):
+#         raise OutOfBounds('provided mother code column is not in the table')
+#     i = start
+#     codes = all_codes.copy() # codes used to move rows
+#     while True:
+#         row = ws[i]
+#         if row[code_id].value == None:
+#             break
+#         try:
+#             code = int(row[code_id].value)
+#         except Exception as e:
+#             print(f'Wrong mother code {row[code_id].value}')
+#             # raise MotherCodeError(f'Wrong mother code {row[code_id].value}')
+        
+#         mother = get_mother(code, cat)
+#         if code not in children and mother != 0:
+#             if mother not in all_codes:
+#                 add_mother_from_catalog()
+#             else:
+#                 move_mother()
+#         elif code in children:
+#             move_children()
+#             add_children()
+#             print(code, 'inserting mother', mother)
+#             if i != ws.max_row:
+#                 rang = get_range(1, i, ws.max_column, ws.max_row)
+#                 print(rang, ' moving down 1')
+#                 ws.move_range(rang, rows = 1, translate = True) # moving instead of inserting for not managing formulas
+#             values = get_values(cat, [mother], settings.keys())
+#             insert_values(ws, i, i, settings.values(), values)
+#             all_codes[mother] = None
+#             i += 1
+#             BIAS += 1
+#             print('moved to ', i, 'code = ', code, f'{BIAS=}')
+#             continue
+#         if code in children:
+#             not_used_children = list(filter(lambda x: x not in all_codes, children[code])) # add not used children from catalog
+#             num = len(not_used_children)
+#             print(code, 'moving down', len(not_used_children), 'rows')
+#             # ws.insert_rows(i+1, num) # insert_rows inserts before index, indexing starts from one there for add 1
+#             if i != ws.max_row:
+#                 rang = get_range(1, i+1, ws.max_column, ws.max_row)
+#                 print(rang)
+#                 ws.move_range(rang, rows = num, translate = True) # moving instead of inserting for not managing formulas
+#             values = get_values(cat, not_used_children, settings.keys())
+#             insert_values(ws, i+1, i+num, settings.values(), values)
+#             i += num
+#         i += group_codes(ws, code, i, codes, children, cat)
+#         i += 1
+#     print('=============')
+
+
+def group_codes(ws, code, i, all_codes, children, cat):
+    global BIAS
+    if len(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN]) != 1:
+        return 0
+    mother = int(cat[cat[CODE_COLUMN] == code][CLONE_COLUMN])
+    if mother == 0:
+        return 0
+    print(f'{code=}, {mother=}')
+    brothers = list(filter(lambda x: x in all_codes and x != code, children[mother])) # all codes that are in file
+    rang = get_range(1, i+1, ws.max_column, ws.max_row)
+    print(f'moving {rang} {len(brothers)}')
+    ws.move_range(rang, rows = len(brothers), translate = True) # free space for them
+    BIAS += len(brothers)
+    print(f'{BIAS=}')
+    for c in brothers:
+        print(f'{c=}, {all_codes[c]=}')
+        ii = all_codes[c] + BIAS
+        rang = get_range(1, ii, ws.max_column, ii)
+        del all_codes[c] # need to move only for first code from group
+        print(f'{i=}, {ii=}, moving {rang} {i - ii + 1}')
+        ws.move_range(rang, rows = i - ii, translate = True) # move under current location
+        ws.delete_rows(ii)
+        rang = get_range(1, ii+1, ws.max_column, ws.max_row)
+        print(f'moving {rang} -1')
+        ws.move_range(rang, rows=-1, translate=True)
+        BIAS -= 1
+        print(f'{BIAS=}')
+        i += 1
+    return len(brothers)
+
+
 
 
 # def mother_children_table(cat, codes, settings):
-#     cat_grouped = cat.set_index(['Клон', 'Код тов.'])
+#     cat_grouped = cat.set_index([CLONE_COLUMN, CODE_COLUMN])
 #     cat_grouped.sort_index(inplace = True)
 #     print(settings.keys())
 #     return cat_grouped.loc[codes]
 
 # def read_codes(file, settings):
-#     return pd.read_excel(file).iloc[:, settings['Код тов.']]
+#     return pd.read_excel(file).iloc[:, settings[CODE_COLUMN]]
 
 def check_df(df):
-    if df.columns[0]!= 'Код тов.':
+    if df.columns[0]!= CODE_COLUMN:
         return False
     return True
 
@@ -112,14 +212,14 @@ def group(cat, clones, copy, df):
     add_children = []
     # searching childten to add
     for _, row in df.iterrows():
-        if row['Код тов.'] in clones:
-            for ch in clones[row['Код тов.']]:
-                if ch not in df['Код тов.'].values:
+        if row[CODE_COLUMN] in clones:
+            for ch in clones[row[CODE_COLUMN]]:
+                if ch not in df[CODE_COLUMN].values:
                     add_children.append(ch)
     # merging
-    df = pd.concat([df, (pd.DataFrame({'Код тов.': add_children}))])
-    res = df.merge(cat, on=['Код тов.'], how='left', suffixes=('','catalog'))
-    res = res.set_index(['Клон', 'Код тов.'])
+    df = pd.concat([df, (pd.DataFrame({CODE_COLUMN: add_children}))])
+    res = df.merge(cat, on=[CODE_COLUMN], how='left', suffixes=('','catalog'))
+    res = res.set_index([CLONE_COLUMN, CODE_COLUMN])
     res.sort_index(inplace = True)
     # copying values
     if copy:

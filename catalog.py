@@ -1,5 +1,6 @@
 '''
 load and pickle catalog
+add to 1c program
 '''
 
 import pandas as pd
@@ -10,9 +11,10 @@ if len(sys.argv) < 2:
     exit()
 print('reading file (it will take some time)...')
 cat = pd.read_excel(sys.argv[1])
-names = dict(zip(cat.columns, cat.loc[[0]].values.flatten()))
-cat.rename(columns = names, inplace = True)
+cat['клон'] = cat['артикул'].str.split('/').str[0]
+cat['клон'] = cat['клон'].fillna(0)
+cat.loc[cat['код'] == cat['артикул'], 'клон'] = cat.loc[cat['код'] == cat['артикул'], 'код']
 print('saving file...')
 with open('cat.pkl', 'wb') as f:
-    pickle.dump(cat[1:], f)
+    pickle.dump(cat, f)
 print('Done!')
