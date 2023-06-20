@@ -15,9 +15,8 @@ class Grouper():
         if CODE_COLUMN not in columns:
             raise Exception('code column is not provided')
         self.code_id = columns[CODE_COLUMN]
-        # self.BIAS = 0
         self.all_codes = self.get_all_codes()
-        self.blanks = []
+        self.catalog_codes = set(cat[CODE_COLUMN])
         if self.code_id >= len(self.ws[1]):
             raise OutOfBounds('provided mother code column is not in the table')
         
@@ -39,8 +38,6 @@ class Grouper():
         return code == self.get_mother(code)
     
     def move(self):
-        # add skipping recently added or moved codes, skip group
-        # think about it
         self.i += 1
         row = self.ws[self.i]
         print('current i = ', self.i)
@@ -67,7 +64,6 @@ class Grouper():
     def move_range(self, rows, frm, to = None):
         if not to:
             to = self.ws.max_row
-            # self.BIAS += rows # add to BIAS if moving all cells below
         rang = self.get_range(1, frm, self.ws.max_column, to)
         self.update_rows(rows, frm, to)
         print('moving ', rang, 'by ', rows)
@@ -76,24 +72,9 @@ class Grouper():
     def get_biased_index(self, code):
         return self.all_codes[code]
     
-    # def delete_blanks(self):
-    #     print('deleting blanks')
-    #     self.ws.delete_rows()
-    #     for i in self.blanks:
-    #         ws.delete_rows()
-    #         print('deleting')
-    #     print(idx)
-    #     for e, i in enumerate(sorted(idx)):
-    #         print('deleting ', i - e)
-    #         self.ws.delete_rows(i - e)
-    #         # self.BIAS -= 1
-    #     self.blanks = []
-    
     def move_row(self, row, rows, code):
         self.move_range(rows=rows, frm=row, to=row)
         self.move_range(rows=-1, frm=row+1)
-        # print('appending ', row, ' to blanks')
-        # self.blanks.append(code)
     
     def move_mother(self, mother):
         print('moving mother')
@@ -104,12 +85,20 @@ class Grouper():
 
     def get_values(self, codes, names):
         df = self.cat[self.cat[CODE_COLUMN].isin(codes)][names]
-        return [list(df[name]) for name in names]
+        values = [list(df[name]) for name in names]
+        if len(codes) != len(values[0]):
+            print('some values were not found')
+            return values
+        return values
 
     def add_mother(self, mother):
-        print('adding mother')
+        print('adding mother ', mother)
+        if mother not in self.catalog_codes:
+            print('mother not found in catalog')
+            values = [[mother]] + [['мат кода нет в каталоге'] for i in range(len(self.columns.keys()) - 1)]
+        else:
+            values = self.get_values([mother], self.columns.keys())
         self.move_range(rows=1, frm=self.i)
-        values = self.get_values([mother], self.columns.keys())
         print('inserting mother into ', self.i)
         self.insert_values(self.i, self.i, self.columns.values(), values)
         print('staying at mother ', self.i)
@@ -130,12 +119,17 @@ class Grouper():
         self.i += len(children) # point to the last inserted values
 
     def insert_values(self, start, end, columns, values):
-        for i, row in enumerate(self.ws.iter_rows(min_row = start, max_row = end)):
-            for j, col in enumerate(columns):
-                val = values[j][i]
+        print('inserting')
+        print(values)
+        for j, col in enumerate(columns):
+            for i, row in enumerate(self.ws.iter_rows(min_row = start, max_row = end)):
+                if i >= len(values[j]):
+                    val = 'не найден'
+                else:
+                    val = values[j][i]
+                print('      inserting', val, 'into', (start+i, col+1))
                 if type(val) == str:
                     val = val.strip()
-                print('      inserting', val, 'into', (start+i, col+1))
                 try:
                     row[col].value = val
                 except IndexError:
@@ -155,7 +149,6 @@ class Grouper():
             self.move_range(rows = len(self.children[mother]), frm=self.i + 1) # free space for all brothers
             self.move_children(mother)
             self.add_children(mother)
-            # self.delete_blanks()
 
     def get_all_codes(self):
         print('getting all codes')
