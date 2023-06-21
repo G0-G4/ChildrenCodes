@@ -1,11 +1,14 @@
+
+import PySimpleGUI as sg
 from exceptions import *
 from openpyxl.utils.cell  import column_index_from_string, get_column_letter
 from collections import defaultdict
 from functions import CODE_COLUMN, CLONE_COLUMN
+import logging
 
 class Grouper():
     def __init__(self, wb, start, children, columns, cat):
-        print(columns)
+        logging.info(columns)
         self.wb = wb
         self.ws = wb.active
         self.i = start - 1 # т.к потом будет move который сдвинет
@@ -31,7 +34,7 @@ class Grouper():
             mother = int(mother)
             return mother
         except:
-            print('cant convert into int ', mother)
+            logging.warning(f'cant convert into int {mother}')
             return 0
     
     def is_mother(self, code):
@@ -40,14 +43,14 @@ class Grouper():
     def move(self):
         self.i += 1
         row = self.ws[self.i]
-        print('current i = ', self.i)
+        logging.debug(f'current i = {self.i}')
         if row[self.code_id].value == None:
             return False
         try:
             code = int(row[self.code_id].value)
-            print('code = ', code)
+            logging.debug(f'{code=}')
         except Exception as e:
-            print(f'Wrong mother code {row[self.code_id].value}')
+            logging.warning(f'Wrong mother code {row[self.code_id].value}')
         else:
             return code
         return -1
@@ -66,7 +69,7 @@ class Grouper():
             to = self.ws.max_row
         rang = self.get_range(1, frm, self.ws.max_column, to)
         self.update_rows(rows, frm, to)
-        print('moving ', rang, 'by ', rows)
+        logging.debug(f'moving {rang} by {rows}')
         self.ws.move_range(rang, rows)
 
     def get_biased_index(self, code):
@@ -77,34 +80,34 @@ class Grouper():
         self.move_range(rows=-1, frm=row+1)
     
     def move_mother(self, mother):
-        print('moving mother')
+        logging.info('moving mother')
         self.move_range(rows=1, frm=self.i)
         mother_id = self.get_biased_index(mother)
         self.move_row(mother_id, self.i - mother_id, mother)
-        print('staying at mother ', self.i)
+        logging.info(f'staying at mother {self.i}')
 
     def get_values(self, codes, names):
         df = self.cat[self.cat[CODE_COLUMN].isin(codes)][names]
         values = [list(df[name]) for name in names]
         if len(codes) != len(values[0]):
-            print('some values were not found')
+            logging.warning('some values were not found')
             return values
         return values
 
     def add_mother(self, mother):
-        print('adding mother ', mother)
+        logging.info(f'adding mother {mother}')
         if mother not in self.catalog_codes:
-            print('mother not found in catalog')
+            logging.debug(f'{mother} not found in catalog')
             values = [[mother]] + [['мат кода нет в каталоге'] for i in range(len(self.columns.keys()) - 1)]
         else:
             values = self.get_values([mother], self.columns.keys())
         self.move_range(rows=1, frm=self.i)
-        print('inserting mother into ', self.i)
+        logging.debug(f'inserting mother into {self.i}')
         self.insert_values(self.i, self.i, self.columns.values(), values)
-        print('staying at mother ', self.i)
+        logging.debug(f'staying at mother {self.i}')
 
     def move_children(self, mother):
-        print('moving children')
+        logging.info('moving children')
         children = list(filter(lambda x: x in self.all_codes, self.children[mother]))
         for child in children:
             ii = self.get_biased_index(child)
@@ -112,27 +115,28 @@ class Grouper():
             self.move()
 
     def add_children(self, mother):
-        print('adding children')
+        logging.info('adding children')
         children = list(filter(lambda x: x not in self.all_codes, self.children[mother]))
         values = self.get_values(children, self.columns.keys())
         self.insert_values(self.i+1, self.i+len(children), self.columns.values(), values)
         self.i += len(children) # point to the last inserted values
 
     def insert_values(self, start, end, columns, values):
-        print('inserting')
-        print(values)
+        logging.debug('inserting')
+        logging.debug(values)
         for j, col in enumerate(columns):
             for i, row in enumerate(self.ws.iter_rows(min_row = start, max_row = end)):
                 if i >= len(values[j]):
                     val = 'не найден'
                 else:
                     val = values[j][i]
-                print('      inserting', val, 'into', (start+i, col+1))
+                logging.debug(f'      inserting {val} into ({start+i, col+1})')
                 if type(val) == str:
                     val = val.strip()
                 try:
                     row[col].value = val
                 except IndexError:
+                    logging.error(f'cant insert into {(start+i, col+1)}')
                     raise InsertError(f'cant insert into {(start+i, col+1)}',)
 
     def process(self):
@@ -149,15 +153,16 @@ class Grouper():
             self.move_range(rows = len(self.children[mother]), frm=self.i + 1) # free space for all brothers
             self.move_children(mother)
             self.add_children(mother)
+            # sg.one_line_progress_meter('progress', self.i, len(self.all_codes))
+
 
     def get_all_codes(self):
-        print('getting all codes')
+        logging.info('getting all codes')
         i = self.i
         codes = dict()
         while code := self.move():
             codes[code] = self.i
         self.i = i
-        print('=================')
         return codes
 
     

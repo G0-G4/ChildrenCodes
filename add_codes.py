@@ -1,13 +1,14 @@
 import PySimpleGUI as sg
 import pandas as pd
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from exceptions import *
-import sys
 import pickle
 import traceback
 from functions import *
 from grouper import Grouper
+import logging
 
+# logging.basicConfig(level=logging.DEBUG)
 
 group_tab = [
     [sg.Checkbox('копировать значения для добавленных', key='-copy-')],
@@ -31,10 +32,10 @@ layout = [
 try:
     CATALOG = load_catalog('cat.pkl')
 except FileNotFoundError:
-    print('каталог не найден')
+    logging.error('каталог не найден')
     exit()
 except pickle.PickleError:
-    print('ошибка загрузки каталога')
+    logging.error('ошибка загрузки каталога')
     exit()
 
 COLUMN_SETTINGS = dict()
@@ -78,7 +79,7 @@ while True:
             sg.popup('Done!')
         except Exception as e:
             sg.popup(e)
-            print(traceback.print_exc())
+            logging.error(traceback.print_exc())
         finally:
             wb.close()
     if event == '-process_group-':
@@ -94,10 +95,9 @@ while True:
                 initial[n] = True
             columns = check_box_window(initial)
             res = res[columns]
-            print(type(res))
             res.to_excel(save_name)
             sg.popup('Done!')
         except Exception as e:
             sg.popup(e)
-            print(traceback.print_exc())
+            logging.error(traceback.print_exc())
 window.close()
